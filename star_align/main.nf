@@ -75,8 +75,33 @@ process multiqc {
         """
 }
 
+
+process merge_quantifications {
+
+    cpus 2
+    memory '8 GB'
+    container "ghcr.io/xyonetx/nextflow-scripts/pandas:2.1.3"
+    publishDir "${params.output_dir}/quantifications", mode:"copy"
+
+    input:
+        path count_files
+
+    output:
+        path('raw_counts.tsv')
+
+    script:
+        """
+        /usr/bin/python3 /opt/software/concat_star_quants.py \
+            -s ${params.strandedness} \
+            -o raw_counts.tsv \
+            ${count_files}
+        """
+}
+
+
 workflow {    
     fq_channel = Channel.fromFilePairs(params.fastq_dir + '/' + params.fastq_pattern)
     (bams_ch, quants_ch, logs_ch) = star_align(params.star_index_path, fq_channel)
     multiqc(logs_ch.collect())
+    merged_quants_ch = merge_quantifications(quants_ch.collect())
 }
