@@ -76,8 +76,8 @@ process run_gsea {
         /opt/software/gsea/GSEA_4.3.2/gsea-cli.sh GSEA \
             -res "${gct_file}" \
             -cls "${cls_file}#${contrast}" \
-            -gmx ftp.broadinstitute.org://pub/gsea/msigdb/human/gene_sets/h.all.v2023.1.Hs.symbols.gmt \
-            -chip ftp.broadinstitute.org://pub/gsea/msigdb/human/annotations/Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip \
+            -gmx  /opt/software/resources/h.all.v2023.1.Hs.symbols.gmt \
+            -chip /opt/software/resources/Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip \
             -out /gsea/ \
             -rpt_label output \
             -zip_report true \
@@ -130,8 +130,8 @@ process run_gsea_preranked {
         contrast = String.format(contrast_template, experimental_condition, base_condition)
         """
         /opt/software/gsea/GSEA_4.3.2/gsea-cli.sh GSEAPreranked \
-            -gmx ftp.broadinstitute.org://pub/gsea/msigdb/human/gene_sets/h.all.v2023.1.Hs.symbols.gmt \
-            -chip ftp.broadinstitute.org://pub/gsea/msigdb/human/annotations/Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip \
+            -gmx /opt/software/resources/h.all.v2023.1.Hs.symbols.gmt \
+            -chip /opt/software/resources/Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip \
             -rnk ${rnk_file} \
             -rpt_label output \
             -collapse Collapse \
