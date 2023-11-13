@@ -3,7 +3,7 @@ process deseq2_dge {
     cpus 4
     memory '12 GB'
     container "ghcr.io/xyonetx/nextflow-scripts/deseq2:1.40.2"
-    publishDir "${params.output_dir}/diffential_expression/${contrast}", mode:"copy"
+    publishDir "${params.output_dir}/differential_expression/${contrast}", mode:"copy"
 
     input:
         path ann
@@ -33,7 +33,7 @@ process deseq2_dge {
 
 process map_ensg_to_symbol {
     tag "Run ENSG to symbol gene mapping"
-    publishDir "${output_dir}/${output_location}", mode:"copy"
+    publishDir "${params.output_dir}/${output_location}", mode:"copy"
     container "ghcr.io/xyonetx/tcga-pipeline/pandas"
     cpus 2
     memory '4 GB'
@@ -66,6 +66,5 @@ workflow {
            }
 
     (dge_ch, nc_ch) = deseq2_dge(ann_ch, counts_ch, contrast_ch)
-    map_ensg_to_symbol(dge_ch, "differential_expression")
-    map_ensg_to_symbol(nc_ch, "differential_expression")
+    map_ensg_to_symbol(nc_ch.concat(dge_ch), "differential_expression")
 }
