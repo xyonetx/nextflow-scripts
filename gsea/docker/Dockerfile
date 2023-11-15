@@ -24,7 +24,7 @@ ADD create_rnk_file.py /opt/software/scripts/
 ADD GSEA_4.3.2.zip /opt/software/gsea/
 ADD h.all.v2023.2.Hs.symbols.gmt /opt/software/resources/
 ADD Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip /opt/software/resources/
-
+ADD c2.cp.v2023.2.Hs.symbols.gmt /opt/software/resources/
 RUN unzip /opt/software/gsea/GSEA_4.3.2.zip -d /opt/software/gsea
 
 # Install python deps
