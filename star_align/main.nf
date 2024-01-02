@@ -6,8 +6,8 @@ process star_align {
     publishDir "${params.output_dir}/star_logs", mode:"copy", pattern: "*.out"
     publishDir "${params.output_dir}/quantifications", mode:"copy", pattern: "*.tsv"
     container "ghcr.io/xyonetx/nextflow-scripts/star:2.7.11a"
-    cpus 8
-    memory '32 GB'
+    cpus 16
+    memory '55 GB'
 
     input:
         path star_index_tar
