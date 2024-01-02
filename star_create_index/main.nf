@@ -2,7 +2,7 @@
 
 process create_index {
     tag "idx"
-    publishDir "${params.output_dir}", mode:"copy"
+    publishDir "${params.output_dir}/${params.genomeId}", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/star:2.7.11a"
     cpus 8
     memory '64 GB'
@@ -12,7 +12,7 @@ process create_index {
         path(gtf)
 
     output:
-        path("starIndex/*")
+        path("${params.genomeId}.sjdb${params.sjdb_overhang}.tar")
 
     script:
         unzipped_fasta = fasta.getBaseName()
@@ -27,6 +27,7 @@ process create_index {
             --sjdbGTFfile ${gtf} \
             --sjdbOverhang ${params.sjdb_overhang} \
             --limitGenomeGenerateRAM=62000000000
+        tar -cf ${params.genomeId}.sjdb${params.sjdb_overhang}.tar -C starIndex .
         """
 }
 
