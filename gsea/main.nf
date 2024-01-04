@@ -31,7 +31,7 @@ process prep_gct_and_cls_files {
 process prep_rnk_files {
 
     tag "Prep RNK files for GSEA"
-    publishDir "${params.output_dir}/gsea", mode:"copy"
+    publishDir "${params.output_dir}/gsea_preranked", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
@@ -63,14 +63,12 @@ process run_gsea {
     input:
         path(gct_file)
         path(cls_file)
-        tuple val(base_condition), val(experimental_condition)
+        tuple val(contrast), val(base_condition), val(experimental_condition)
 
     output:
         path("${contrast}.gsea_results.zip")
 
     script:
-        def contrast_template = "%s_versus_%s"
-        contrast = String.format(contrast_template, experimental_condition, base_condition)
         """
 
         /opt/software/gsea/GSEA_4.3.2/gsea-cli.sh GSEA \
@@ -110,6 +108,62 @@ process run_gsea {
 }
 
 
+process run_gsea_cp {
+
+    tag "Run GSEA on C2.cp"
+    publishDir "${params.output_dir}/gsea", mode:"copy"
+    container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
+    cpus 2
+    memory '4 GB'
+
+    input:
+        path(gct_file)
+        path(cls_file)
+        tuple val(contrast), val(base_condition), val(experimental_condition)
+
+    output:
+        path("${contrast}.cp_gsea_results.zip")
+
+    script:
+        """
+
+        /opt/software/gsea/GSEA_4.3.2/gsea-cli.sh GSEA \
+            -res "${gct_file}" \
+            -cls "${cls_file}#${contrast}" \
+            -gmx  /opt/software/resources/c2.cp.v2023.2.Hs.symbols.gmt \
+            -chip /opt/software/resources/Human_Ensembl_Gene_ID_MSigDB.v2023.1.Hs.chip \
+            -out /gsea/ \
+            -rpt_label output \
+            -zip_report true \
+            -collapse Collapse \
+            -mode Max_probe \
+            -norm meandiv \
+            -nperm 1000 \
+            -permute phenotype \
+            -rnd_seed timestamp \
+            -rnd_type no_balance \
+            -scoring_scheme weighted \
+            -metric Signal2Noise \
+            -sort real \
+            -order descending \
+            -create_gcts false \
+            -create_svgs false \
+            -include_only_symbols true \
+            -make_sets true \
+            -median false \
+            -num 100 \
+            -plot_top_x 20 \
+            -save_rnd_lists false \
+            -set_max 500 \
+            -set_min 15
+
+        /usr/bin/python3 /opt/software/scripts/move_final_files.py \
+            -p "/gsea/output*/*.zip" \
+            -o ${contrast}.cp_gsea_results.zip
+        """
+}
+
+
 process run_gsea_preranked {
 
     tag "Run GSEA Preranked"
@@ -119,15 +173,12 @@ process run_gsea_preranked {
     memory '4 GB'
 
     input:
-        path(rnk_file)
-        tuple val(base_condition), val(experimental_condition)
+        tuple val(contrast), val(base_condition), val(experimental_condition), path(rnk_file)
 
     output:
         path("${contrast}.gsea_preranked_results.zip")
 
     script:
-        def contrast_template = "%s_versus_%s"
-        contrast = String.format(contrast_template, experimental_condition, base_condition)
         """
         /opt/software/gsea/GSEA_4.3.2/gsea-cli.sh GSEAPreranked \
             -gmx /opt/software/resources/h.all.v2023.2.Hs.symbols.gmt \
@@ -164,14 +215,21 @@ workflow {
     gct_ch = gct_ch.collect()
     cls_ch = cls_ch.collect()
 
-    rnk_ch = prep_rnk_files(dge_results_ch)
+    rnk_ch = prep_rnk_files(dge_results_ch).map {
+        f -> tuple(f.baseName.tokenize('.')[1], f)
+    }
 
     contrast_ch = Channel.fromPath(params.contrasts)
            .splitCsv(header: ['base_condition', 'experimental_condition'], skip: 1 )
            .map{
-               row -> tuple(row.base_condition, row.experimental_condition)
+               row -> tuple(row.experimental_condition + '_versus_' + row.base_condition, row.base_condition, row.experimental_condition)
            }
     
     run_gsea(gct_ch, cls_ch, contrast_ch)
-    run_gsea_preranked(rnk_ch, contrast_ch)
+    run_gsea_cp(gct_ch, cls_ch, contrast_ch)
+
+    // since rnk files and contrasts can be in different order, need to 
+    // join by the key, which is the contrast name
+    joined_ch = contrast_ch.join(rnk_ch)
+    run_gsea_preranked(joined_ch)
 }

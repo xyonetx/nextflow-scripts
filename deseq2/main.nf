@@ -16,7 +16,7 @@ process deseq2_dge {
 
     script:
         def output_dge_filename_template = "deseq2_results.%s.tsv"
-        def contrast_template = "%s_vs_%s"
+        def contrast_template = "%s_versus_%s"
         contrast = String.format(contrast_template, experimental_condition, base_condition)
         output_dge_filename = String.format(output_dge_filename_template, contrast)
         """
