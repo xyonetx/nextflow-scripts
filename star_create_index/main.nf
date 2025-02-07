@@ -1,4 +1,6 @@
-// This script simply creates the STAR index
+// This script simply creates the STAR index.
+// Since it is generally a process we only have to do once,
+// we don't expose it as a potential sub-workflow.
 
 process create_index {
     tag "idx"
@@ -8,11 +10,11 @@ process create_index {
     memory '64 GB'
 
     input:
-        path(fasta)
-        path(gtf)
+        path fasta 
+        path gtf 
 
     output:
-        path("${params.genomeId}.sjdb${params.sjdb_overhang}.tar")
+        path "${params.genomeId}.sjdb${params.sjdb_overhang}.tar"
 
     script:
         unzipped_fasta = fasta.getBaseName()
