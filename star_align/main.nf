@@ -1,17 +1,18 @@
-// This script simply creates the STAR index
+// This script aligns FASTQ files and creates a merged count matrix
 
 process star_align {
 
-    publishDir "${params.output_dir}/bams", mode:"copy", pattern: "*.bam"
-    publishDir "${params.output_dir}/star_logs", mode:"copy", pattern: "*.out"
-    publishDir "${params.output_dir}/quantifications", mode:"copy", pattern: "*.tsv"
+    publishDir "${output_dir}/bams", mode:"copy", pattern: "*.bam"
+    publishDir "${output_dir}/star_logs", mode:"copy", pattern: "*.out"
+    publishDir "${output_dir}/quantifications", mode:"copy", pattern: "*.tsv"
     container "ghcr.io/xyonetx/nextflow-scripts/star:2.7.11a"
     cpus 16
     memory '55 GB'
 
     input:
         path star_index_tar
-        tuple val(sampleID), path("reads_R?.fastq.gz")
+        tuple val(sampleID), val(condition), path("reads_R?.fastq.gz")
+        val output_dir
 
     output:
         path("*.sorted.bam")
@@ -60,10 +61,11 @@ process multiqc {
     cpus 2
     memory '4 GB'
     container "ghcr.io/xyonetx/nextflow-scripts/star:2.7.11a"
-    publishDir "${params.output_dir}/multiqc", mode:"copy"
+    publishDir "${output_dir}/multiqc", mode:"copy"
 
     input:
         path("*.Log.final.out")
+        val output_dir
 
     output:
         path('multiqc_report.html')
@@ -81,13 +83,14 @@ process merge_quantifications {
     cpus 2
     memory '8 GB'
     container "ghcr.io/xyonetx/nextflow-scripts/pandas:2.1.3"
-    publishDir "${params.output_dir}/quantifications", mode:"copy"
+    publishDir "${output_dir}/merged_quantifications", mode:"copy"
 
     input:
         path count_files
+        val output_dir
 
     output:
-        path('raw_counts.tsv')
+        path 'raw_counts.tsv'
 
     script:
         """
@@ -99,9 +102,40 @@ process merge_quantifications {
 }
 
 
-workflow {    
-    fq_channel = Channel.fromFilePairs(params.fastq_dir + '/' + params.fastq_pattern)
-    (bams_ch, quants_ch, logs_ch) = star_align(params.star_index_path, fq_channel)
-    multiqc(logs_ch.collect())
-    merged_quants_ch = merge_quantifications(quants_ch.collect())
+// used when invoking this as a sub-workflow
+workflow star_align_wf {
+
+    take:
+        fastq_dir
+        fastq_pattern
+        annotations
+        star_index_path
+        output_dir
+
+    main:
+        fq_channel = Channel.fromFilePairs(fastq_dir + '/' + fastq_pattern)
+
+        ann_ch = Channel.fromPath(annotations)
+            .splitCsv(header: ['sample_id', 'condition'], skip: 1, sep: '\t')
+            .map{
+                row -> tuple(row.sample_id, row.condition)
+            }
+
+        // since the ann_ch and fq_channel both have the sample IDs as the first
+        // item, we can use the `join` operator to filter out any other FASTQs
+        // that happen to be in the folder, yet aren't reflected in the annotations.
+        selected_samples_ch = ann_ch.join(fq_channel)
+
+        (bams_ch, quants_ch, logs_ch) = star_align(star_index_path, selected_samples_ch, output_dir)
+        multiqc(logs_ch.collect(), output_dir)
+        merged_quants_ch = merge_quantifications(quants_ch.collect(), output_dir)
+
+    emit:
+        merged_quants_ch
+}
+
+
+// used when invoking directly (i.e. NOT as part of a sub-workflow)
+workflow {
+    star_align_wf(params.fastq_dir, params.fastq_pattern, params.annotations, params.star_index_path, params.output_dir)
 }
