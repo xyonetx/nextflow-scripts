@@ -1,7 +1,7 @@
 process prep_gct_and_cls_files {
 
     tag "Prep GCT and CLS files for GSEA"
-    publishDir "${params.output_dir}/gsea", mode:"copy"
+    publishDir "${output_dir}/gsea", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
@@ -9,6 +9,7 @@ process prep_gct_and_cls_files {
     input:
         path(norm_counts)
         path(annotations)
+        val output_dir
 
     output:
         path("${gct_file}")
@@ -31,13 +32,14 @@ process prep_gct_and_cls_files {
 process prep_rnk_files {
 
     tag "Prep RNK files for GSEA"
-    publishDir "${params.output_dir}/gsea_preranked", mode:"copy"
+    publishDir "${output_dir}/gsea_preranked", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
 
     input:
         path(dge_results)
+        val output_dir
 
     output:
         path("${rnk_file}")
@@ -55,7 +57,7 @@ process prep_rnk_files {
 process run_gsea {
 
     tag "Run GSEA"
-    publishDir "${params.output_dir}/gsea", mode:"copy"
+    publishDir "${output_dir}/gsea", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
@@ -64,6 +66,7 @@ process run_gsea {
         path(gct_file)
         path(cls_file)
         tuple val(contrast), val(base_condition), val(experimental_condition)
+        val output_dir
 
     output:
         path("${contrast}.gsea_results.zip")
@@ -111,7 +114,7 @@ process run_gsea {
 process run_gsea_cp {
 
     tag "Run GSEA on C2.cp"
-    publishDir "${params.output_dir}/gsea", mode:"copy"
+    publishDir "${output_dir}/gsea", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
@@ -120,6 +123,7 @@ process run_gsea_cp {
         path(gct_file)
         path(cls_file)
         tuple val(contrast), val(base_condition), val(experimental_condition)
+        val output_dir
 
     output:
         path("${contrast}.cp_gsea_results.zip")
@@ -167,13 +171,14 @@ process run_gsea_cp {
 process run_gsea_preranked {
 
     tag "Run GSEA Preranked"
-    publishDir "${params.output_dir}/gsea_preranked", mode:"copy"
+    publishDir "${output_dir}/gsea_preranked", mode:"copy"
     container "ghcr.io/xyonetx/nextflow-scripts/gsea:4.3.2"
     cpus 2
     memory '4 GB'
 
     input:
         tuple val(contrast), val(base_condition), val(experimental_condition), path(rnk_file)
+        val output_dir
 
     output:
         path("${contrast}.gsea_preranked_results.zip")
@@ -206,30 +211,46 @@ process run_gsea_preranked {
         """
 }
 
-workflow {
-    dge_results_ch = Channel.fromPath(params.dge_results_glob)
-    norm_counts_ch= Channel.fromPath(params.norm_counts)
-    ann_ch = Channel.fromPath(params.annotations)
 
-    (gct_ch, cls_ch) = prep_gct_and_cls_files(norm_counts_ch, ann_ch)
-    gct_ch = gct_ch.collect()
-    cls_ch = cls_ch.collect()
+// used when invoking as a sub-workflow
+workflow gsea_wf {
 
-    rnk_ch = prep_rnk_files(dge_results_ch).map {
-        f -> tuple(f.baseName.tokenize('.')[1], f)
-    }
-
-    contrast_ch = Channel.fromPath(params.contrasts)
-           .splitCsv(header: ['base_condition', 'experimental_condition'], skip: 1 )
-           .map{
-               row -> tuple(row.experimental_condition + '_versus_' + row.base_condition, row.base_condition, row.experimental_condition)
-           }
+    take:
+        dge_results_glob
+        norm_counts
+        annotations
+        contrasts
+        output_dir
     
-    run_gsea(gct_ch, cls_ch, contrast_ch)
-    run_gsea_cp(gct_ch, cls_ch, contrast_ch)
+    main:
+        dge_results_ch = Channel.fromPath(dge_results_glob)
+        norm_counts_ch= Channel.fromPath(norm_counts)
+        ann_ch = Channel.fromPath(annotations)
 
-    // since rnk files and contrasts can be in different order, need to 
-    // join by the key, which is the contrast name
-    joined_ch = contrast_ch.join(rnk_ch)
-    run_gsea_preranked(joined_ch)
+        (gct_ch, cls_ch) = prep_gct_and_cls_files(norm_counts_ch, ann_ch, output_dir)
+        gct_ch = gct_ch.collect()
+        cls_ch = cls_ch.collect()
+
+        rnk_ch = prep_rnk_files(dge_results_ch, output_dir).map {
+            f -> tuple(f.baseName.tokenize('.')[1], f)
+        }
+
+        contrast_ch = Channel.fromPath(contrasts)
+            .splitCsv(header: ['base_condition', 'experimental_condition'], skip: 1, sep: '\t')
+            .map{
+                row -> tuple(row.experimental_condition + '_versus_' + row.base_condition, row.base_condition, row.experimental_condition)
+            }
+        
+        run_gsea(gct_ch, cls_ch, contrast_ch, output_dir)
+        run_gsea_cp(gct_ch, cls_ch, contrast_ch, output_dir)
+
+        // since rnk files and contrasts can be in different order, need to 
+        // join by the key, which is the contrast name
+        joined_ch = contrast_ch.join(rnk_ch)
+        run_gsea_preranked(joined_ch, output_dir)
+}
+
+// used when invoking as standalone
+workflow {
+    gsea_wf(params.dge_results_glob, params.norm_counts, params.annotations, params.contrasts, params.output_dir)
 }
