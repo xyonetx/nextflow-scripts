@@ -1,3 +1,5 @@
+params.min_reads = 10
+
 process prep_gct_and_cls_files {
 
     tag "Prep GCT and CLS files for GSEA"
@@ -216,15 +218,13 @@ process run_gsea_preranked {
 workflow gsea_wf {
 
     take:
-        dge_results_glob
-        norm_counts
+        dge_results_ch
+        norm_counts_ch
         annotations
         contrasts
         output_dir
     
     main:
-        dge_results_ch = Channel.fromPath(dge_results_glob)
-        norm_counts_ch= Channel.fromPath(norm_counts)
         ann_ch = Channel.fromPath(annotations)
 
         (gct_ch, cls_ch) = prep_gct_and_cls_files(norm_counts_ch, ann_ch, output_dir)
@@ -252,5 +252,7 @@ workflow gsea_wf {
 
 // used when invoking as standalone
 workflow {
-    gsea_wf(params.dge_results_glob, params.norm_counts, params.annotations, params.contrasts, params.output_dir)
+    dge_results_ch = Channel.fromPath(params.dge_results_glob)
+    norm_counts_ch = Channel.fromPath(norm_counts)
+    gsea_wf(dge_results_ch, norm_counts_ch, params.annotations, params.contrasts, params.output_dir)
 }

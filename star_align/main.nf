@@ -12,6 +12,7 @@ process star_align {
     input:
         path star_index_tar
         tuple val(sampleID), val(condition), path("reads_R?.fastq.gz")
+        val sjdb_overhang
         val output_dir
 
     output:
@@ -34,7 +35,7 @@ process star_align {
             --genomeDir ./starIndex \
             --readFilesIn reads_R1.fastq.gz reads_R2.fastq.gz \
             --readFilesCommand zcat \
-            --sjdbOverhang ${params.sjdb_overhang} \
+            --sjdbOverhang ${sjdb_overhang} \
             --outFilterMultimapScoreRange 1 \
             --outFilterMultimapNmax 20 \
             --outFilterMismatchNmax 10 \
@@ -87,6 +88,7 @@ process merge_quantifications {
 
     input:
         path count_files
+        val strandedness
         val output_dir
 
     output:
@@ -95,7 +97,7 @@ process merge_quantifications {
     script:
         """
         /usr/bin/python3 /opt/software/concat_star_quants.py \
-            -s ${params.strandedness} \
+            -s ${strandedness} \
             -o raw_counts.tsv \
             ${count_files}
         """
@@ -110,6 +112,8 @@ workflow star_align_wf {
         fastq_pattern
         annotations
         star_index_path
+        sjdb_overhang
+        strandedness
         output_dir
 
     main:
@@ -126,9 +130,9 @@ workflow star_align_wf {
         // that happen to be in the folder, yet aren't reflected in the annotations.
         selected_samples_ch = ann_ch.join(fq_channel)
 
-        (bams_ch, quants_ch, logs_ch) = star_align(star_index_path, selected_samples_ch, output_dir)
+        (bams_ch, quants_ch, logs_ch) = star_align(star_index_path, selected_samples_ch, sjdb_overhang, output_dir)
         multiqc(logs_ch.collect(), output_dir)
-        merged_quants_ch = merge_quantifications(quants_ch.collect(), output_dir)
+        merged_quants_ch = merge_quantifications(quants_ch.collect(), strandedness, output_dir)
 
     emit:
         merged_quants_ch
@@ -137,5 +141,11 @@ workflow star_align_wf {
 
 // used when invoking directly (i.e. NOT as part of a sub-workflow)
 workflow {
-    star_align_wf(params.fastq_dir, params.fastq_pattern, params.annotations, params.star_index_path, params.output_dir)
+    star_align_wf(params.fastq_dir, 
+        params.fastq_pattern, 
+        params.annotations, 
+        params.star_index_path, 
+        params.sjdb_overhang,
+        params.strandedness,
+        params.output_dir)
 }

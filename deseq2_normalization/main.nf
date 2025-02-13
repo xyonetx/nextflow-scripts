@@ -4,9 +4,9 @@ process deseq2_norm {
 
     cpus 1
     memory '6 GB'
-    container "blawney/deseq2_norm:latest"
+    container "ghcr.io/xyonetx/nextflow-scripts/deseq2_norm:1.40.2"
 
-    publishDir "${output_dir}", mode:"copy", pattern: "normalized_counts.*"
+    publishDir "${output_dir}/bulk_normalized_expression", mode:"copy", pattern: "normalized_counts.*"
 
     input:
         path raw_counts
@@ -27,7 +27,7 @@ process deseq2_norm {
 
 process map_ensg_to_symbol {
     tag "Run ENSG to symbol gene mapping"
-    publishDir "${output_dir}", mode:"copy"
+    publishDir "${output_dir}/bulk_normalized_expression", mode:"copy"
     container "ghcr.io/xyonetx/tcga-pipeline/pandas"
     cpus 2
     memory '4 GB'
@@ -57,9 +57,8 @@ workflow deseq2_norm_wf {
         raw_counts
         output_dir
     main: 
-        counts_ch = Channel.fromPath(raw_counts).collect()
-        nc_ch = deseq2_norm(counts_ch, output_dir)
-        nc_ch = map_ensg_to_symbol(nc_ch, output_dir)
+        nc_ch = deseq2_norm(raw_counts, output_dir)
+        map_ensg_to_symbol(nc_ch, output_dir)
 
     emit:
         nc_ch
@@ -68,5 +67,6 @@ workflow deseq2_norm_wf {
 
 // used when invoking as standalone
 workflow {
-    deseq2_norm_wf(params.raw_counts, params.output_dir)
+    raw_counts_ch = Channel.fromPath(params.raw_counts)
+    deseq2_norm_wf(raw_counts_ch, params.output_dir)
 }

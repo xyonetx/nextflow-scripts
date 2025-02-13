@@ -75,7 +75,6 @@ workflow deseq2_wf {
         contrasts
         output_dir
     main: 
-        counts_ch = Channel.fromPath(raw_counts).collect()
         ann_ch = Channel.fromPath(annotations).collect()
         contrast_ch = Channel.fromPath(contrasts)
             .splitCsv(header: ['base_condition', 'experimental_condition'], skip: 1, sep: '\t')
@@ -83,7 +82,7 @@ workflow deseq2_wf {
                 row -> tuple(row.base_condition, row.experimental_condition)
             }
 
-        (dge_ch, nc_ch, contrast_ch) = deseq2_dge(ann_ch, counts_ch, contrast_ch, output_dir)
+        (dge_ch, nc_ch, contrast_ch) = deseq2_dge(ann_ch, raw_counts, contrast_ch, output_dir)
 
         // since you cannot re-use processes like functions, the next few lines
         // create a single channel which we pass to the `map_ensg_to_symbol` process.
@@ -113,5 +112,6 @@ workflow deseq2_wf {
 
 // used when invoking as standalone
 workflow {
-    deseq2_wf(params.raw_counts, params.annotations, params.contrasts, params.output_dir)
+    raw_counts_ch = Channel.fromPath(params.raw_counts)
+    deseq2_wf(raw_counts_ch, params.annotations, params.contrasts, params.output_dir)
 }
