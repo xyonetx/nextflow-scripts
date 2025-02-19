@@ -101,7 +101,7 @@ process run_gsea {
             -make_sets true \
             -median false \
             -num 100 \
-            -plot_top_x 20 \
+            -plot_top_x 100 \
             -save_rnd_lists false \
             -set_max 500 \
             -set_min 15
@@ -253,6 +253,6 @@ workflow gsea_wf {
 // used when invoking as standalone
 workflow {
     dge_results_ch = Channel.fromPath(params.dge_results_glob)
-    norm_counts_ch = Channel.fromPath(norm_counts)
+    norm_counts_ch = Channel.fromPath(params.norm_counts)
     gsea_wf(dge_results_ch, norm_counts_ch, params.annotations, params.contrasts, params.output_dir)
 }
